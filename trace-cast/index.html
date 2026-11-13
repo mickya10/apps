@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Tracé on TV</title>
+    <meta name="robots" content="noindex" />
+    <script src="https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --bg: #0f1419;
+        --accent: #e86f52;
+        --text: #f4f6f8;
+        --muted: #b7c0c9;
+      }
+      [hidden] {
+        display: none !important;
+      }
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: var(--bg);
+        color: var(--text);
+        font-family: Inter, system-ui, sans-serif;
+      }
+      .slide {
+        position: absolute;
+        inset: 0;
+        background: center / cover no-repeat;
+        opacity: 0;
+        transition: opacity 1.6s ease;
+        transform: scale(1.06);
+      }
+      .slide.on {
+        opacity: 1;
+        animation: drift 14s ease-out forwards;
+      }
+      @keyframes drift {
+        from {
+          transform: scale(1.06) translate(0, 0);
+        }
+        to {
+          transform: scale(1.14) translate(-1.5%, -1%);
+        }
+      }
+      .shade {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(180deg, rgba(15, 20, 25, 0.45) 0%, transparent 30%, transparent 45%, rgba(15, 20, 25, 0.92) 100%);
+      }
+      .caption {
+        position: absolute;
+        left: 6vw;
+        right: 6vw;
+        bottom: 7vh;
+      }
+      .kind {
+        color: var(--accent);
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-size: 1.6vw;
+      }
+      h1 {
+        font-family: Fraunces, Georgia, serif;
+        font-weight: 600;
+        font-size: 4.6vw;
+        line-height: 1.05;
+        margin: 0.6vh 0 1vh;
+        max-width: 70vw;
+      }
+      .near {
+        color: var(--muted);
+        font-size: 1.7vw;
+      }
+      .text {
+        margin-top: 1.6vh;
+        max-width: 58vw;
+        font-size: 1.6vw;
+        line-height: 1.45;
+        color: #dfe4e8;
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .top {
+        position: absolute;
+        left: 6vw;
+        right: 6vw;
+        top: 6vh;
+        display: flex;
+        justify-content: space-between;
+        font-size: 1.5vw;
+        color: var(--muted);
+      }
+      .mark {
+        font-family: Fraunces, Georgia, serif;
+        color: var(--text);
+        font-size: 2vw;
+      }
+      .mark span {
+        color: var(--accent);
+      }
+      .bar {
+        position: absolute;
+        left: 0;
+        bottom: 0;
+        height: 4px;
+        background: var(--accent);
+        width: 0;
+      }
+      .bar.run {
+        transition: width linear;
+        width: 100%;
+      }
+      .idle {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-content: center;
+        text-align: center;
+        gap: 2vh;
+      }
+      .idle .mark {
+        font-size: 7vw;
+      }
+      .idle p {
+        color: var(--muted);
+        font-size: 2vw;
+        margin: 0;
+      }
+      .credit {
+        position: absolute;
+        right: 6vw;
+        bottom: 2.4vh;
+        font-size: 1vw;
+        color: rgba(244, 246, 248, 0.5);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="stage"></div>
+    <div class="shade" id="shade" hidden></div>
+    <div class="top" id="top" hidden>
+      <div class="mark">Tracé<span>.</span></div>
+      <div id="trip"></div>
+    </div>
+    <div class="caption" id="caption" hidden>
+      <div class="kind" id="kind"></div>
+      <h1 id="name"></h1>
+      <div class="near" id="near"></div>
+      <div class="text" id="text"></div>
+    </div>
+    <div class="credit" id="credit" hidden>Photos via Wikimedia Commons</div>
+    <div class="bar" id="bar"></div>
+    <div class="idle" id="idle">
+      <div class="mark">Tracé<span>.</span></div>
+      <p>Pick a trip on your phone to start the slideshow.</p>
+    </div>
+
+    <script>
+      const NS = 'urn:x-cast:com.masoft.trace'
+      const context = cast.framework.CastReceiverContext.getInstance()
+      const $ = (id) => document.getElementById(id)
+      let slides = []
+      let index = 0
+      let playing = true
+      let intervalSec = 12
+      let timer = null
+      let layer = 0
+
+      function broadcast() {
+        try {
+          context.sendCustomMessage(NS, undefined, { type: 'state', index, playing, count: slides.length })
+        } catch (e) {
+          // No sender connected (or previewing outside a Cast device): the slideshow carries on.
+        }
+      }
+
+      function preload(i) {
+        const s = slides[(i + slides.length) % slides.length]
+        if (s) new Image().src = s.imageUrl
+      }
+
+      function restartBar() {
+        const bar = $('bar')
+        bar.classList.remove('run')
+        bar.style.transitionDuration = '0s'
+        void bar.offsetWidth
+        if (!playing) return
+        bar.style.transitionDuration = intervalSec + 's'
+        bar.classList.add('run')
+      }
+
+      function show(i) {
+        if (!slides.length) return
+        index = (i + slides.length) % slides.length
+        const s = slides[index]
+        const stage = $('stage')
+        const el = document.createElement('div')
+        el.className = 'slide'
+        el.style.backgroundImage = 'url("' + s.imageUrl.replace(/"/g, '%22') + '")'
+        stage.appendChild(el)
+        requestAnimationFrame(() => el.classList.add('on'))
+        while (stage.children.length > 2) stage.removeChild(stage.firstChild)
+        $('kind').textContent = s.kind
+        $('name').textContent = s.name
+        $('near').textContent = 'Near ' + s.near
+        $('text').textContent = s.caption || ''
+        $('idle').hidden = true
+        for (const id of ['shade', 'top', 'caption', 'credit']) $(id).hidden = false
+        preload(index + 1)
+        restartBar()
+        schedule()
+        broadcast()
+      }
+
+      function schedule() {
+        clearTimeout(timer)
+        if (playing && slides.length > 1) timer = setTimeout(() => show(index + 1), intervalSec * 1000)
+      }
+
+      context.addCustomMessageListener(NS, (event) => {
+        const m = typeof event.data === 'string' ? JSON.parse(event.data) : event.data
+        if (m.type === 'slides') {
+          slides = Array.isArray(m.slides) ? m.slides : []
+          intervalSec = Math.max(5, Number(m.intervalSec) || 12)
+          playing = true
+          $('trip').textContent = m.title || ''
+          show(m.index || 0)
+        } else if (m.type === 'go') {
+          show(m.index)
+        } else if (m.type === 'pause') {
+          playing = false
+          clearTimeout(timer)
+          restartBar()
+          broadcast()
+        } else if (m.type === 'play') {
+          playing = true
+          restartBar()
+          schedule()
+          broadcast()
+        }
+      })
+
+      const options = new cast.framework.CastReceiverOptions()
+      options.customNamespaces = { [NS]: cast.framework.system.MessageType.JSON }
+      options.disableIdleTimeout = true
+      options.skipPlayersLoad = true
+      context.start(options)
+    </script>
+  </body>
+</html>
