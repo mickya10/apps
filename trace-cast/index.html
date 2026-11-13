@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <title>Tracé on TV</title>
     <meta name="robots" content="noindex" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script src="https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600&family=Inter:wght@400;600&display=swap" rel="stylesheet" />
@@ -26,6 +27,27 @@
         background: var(--bg);
         color: var(--text);
         font-family: Inter, system-ui, sans-serif;
+      }
+      #stage {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        overflow: hidden;
+      }
+      .shade,
+      .idle,
+      .top,
+      .caption,
+      .credit,
+      .bar {
+        position: fixed !important;
+      }
+      .shade,
+      .idle {
+        width: 100vw;
+        height: 100vh;
       }
       .slide {
         position: absolute;
@@ -116,7 +138,7 @@
       }
       .bar.run {
         transition: width linear;
-        width: 100%;
+        width: 100vw;
       }
       .idle {
         position: absolute;
