@@ -1,0 +1,19 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Tracé by MA Soft</title>
+<style>body{font-family:system-ui,sans-serif;margin:0;padding:16px;max-width:680px;background:#0f1419;color:#f4f6f8;line-height:1.5}h1{font-size:24px;margin:8px 0 4px}h1 span{color:#e86f52}h2{font-size:17px;margin-top:24px;color:#e86f52}p,li{font-size:15px;color:#c9d1d9}a{color:#e86f52}</style></head><body>
+<h1>Trac<span>é</span></h1>
+<p>An Android and Android TV app from MA Soft that turns a shared Google Maps link (a place, a route or a saved list) into a travel itinerary: landmarks, photo spots and food stops just off your route.</p>
+<h2>Public APIs this app uses</h2>
+<ul>
+<li><b>Wikipedia (MediaWiki Action API)</b>: nearby articles (geosearch), short descriptions, lead images and intro extracts. Each request identifies the app as <code>Trace/&lt;version&gt;</code> with a link to this page.</li>
+<li><b>Google Places API and Routes API</b>: only when a user adds their own API key in the app's settings.</li>
+</ul>
+<h2>How the app keeps its traffic light</h2>
+<ul>
+<li>At most 2 requests at a time to Wikipedia, about 50 per trip, made once when a trip is created.</li>
+<li>Results are cached on the device, so reopening a trip makes no network requests.</li>
+<li>It honours HTTP 429 and Retry-After, and retries missed requests later instead of repeating them right away.</li>
+<li>No AI or machine-learning services are used. All matching and ranking runs on the device with fixed rules.</li>
+</ul>
+<h2>Contact</h2>
+<p>MA Soft. Questions about this app's API use: see the developer contact on the app's Google Play listing.</p>
+</body></html>
