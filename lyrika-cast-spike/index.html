@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Lyrika cast test</title>
+    <meta name="robots" content="noindex" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Feasibility test only: can a Cast receiver play a YouTube embed with
+         synced lines beside it? Holds no lyrics; the sender sends placeholder
+         lines at runtime. The player is never covered (YouTube RMF: no
+         overlays in front of the embedded player). -->
+    <script src="https://www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
+    <style>
+      html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #0b0d10; color: #f2f4f7; font-family: system-ui, sans-serif; }
+      #wrap { position: fixed; inset: 0; width: 100vw; height: 100vh; display: flex; gap: 3vw; padding: 5vh 4vw; box-sizing: border-box; align-items: center; }
+      #video { flex: 0 0 58vw; aspect-ratio: 16 / 9; background: #000; }
+      #video iframe { width: 100%; height: 100%; border: 0; }
+      #lines { flex: 1; height: 80vh; overflow: hidden; display: flex; flex-direction: column; justify-content: center; gap: 2.2vh; }
+      .l { font-size: 2.4vw; line-height: 1.25; color: #6b7480; transition: color .25s, transform .25s; }
+      .l.on { color: #2ee6c9; transform: scale(1.04); transform-origin: left center; }
+      #status { position: fixed; left: 4vw; bottom: 2vh; font-size: 1.2vw; color: #6b7480; }
+    </style>
+  </head>
+  <body>
+    <div id="wrap"><div id="video"><div id="player"></div></div><div id="lines"></div></div>
+    <div id="status">waiting for sender</div>
+    <script>
+      const NS = 'urn:x-cast:com.masoft.lyrika';
+      const ctx = cast.framework.CastReceiverContext.getInstance();
+      const $ = (id) => document.getElementById(id);
+      let player = null, ready = false, pending = null, lines = [], cur = -1;
+
+      function status(s) { $('status').textContent = s; send({ type: 'status', text: s }); }
+      function send(m) { try { ctx.sendCustomMessage(NS, undefined, m); } catch (e) {} }
+
+      window.onYouTubeIframeAPIReady = () => {
+        player = new YT.Player('player', {
+          playerVars: { autoplay: 1, playsinline: 1, rel: 0 },
+          events: {
+            onReady: () => { ready = true; status('player ready'); if (pending) load(pending); },
+            onStateChange: (e) => send({ type: 'state', state: e.data, t: player.getCurrentTime() }),
+            onError: (e) => status('player error ' + e.data),
+          },
+        });
+      };
+      const s = document.createElement('script'); s.src = 'https://www.youtube.com/iframe_api'; document.head.appendChild(s);
+
+      function render() {
+        $('lines').innerHTML = '';
+        lines.forEach((l, i) => { const d = document.createElement('div'); d.className = 'l'; d.id = 'l' + i; d.textContent = l.text; $('lines').appendChild(d); });
+      }
+      function load(m) {
+        if (!ready) { pending = m; return; }
+        lines = m.lines || []; cur = -1; render();
+        player.loadVideoById(m.videoId, m.start || 0);
+        status('loading ' + m.videoId);
+      }
+      // Highlight from the receiver's own clock: no phone round trip.
+      setInterval(() => {
+        if (!ready || !lines.length) return;
+        const t = player.getCurrentTime() * 1000;
+        let i = -1; for (let k = 0; k < lines.length; k++) if (lines[k].t <= t) i = k;
+        if (i !== cur) {
+          if (cur >= 0) $('l' + cur)?.classList.remove('on');
+          cur = i;
+          if (cur >= 0) { const el = $('l' + cur); el.classList.add('on'); el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }
+          send({ type: 'line', index: cur, t: Math.round(t) });
+        }
+      }, 200);
+
+      ctx.addCustomMessageListener(NS, (ev) => {
+        const m = typeof ev.data === 'string' ? JSON.parse(ev.data) : ev.data;
+        if (m.type === 'load') load(m);
+        else if (m.type === 'play') player?.playVideo();
+        else if (m.type === 'pause') player?.pauseVideo();
+        else if (m.type === 'seek') player?.seekTo(m.t, true);
+        else if (m.type === 'ping') send({ type: 'pong', ready, t: player ? player.getCurrentTime() : null, state: player ? player.getPlayerState() : null });
+      });
+      const opts = new cast.framework.CastReceiverOptions();
+      opts.customNamespaces = { [NS]: cast.framework.system.MessageType.JSON };
+      opts.disableIdleTimeout = true;
+      opts.skipPlayersLoad = true;
+      ctx.start(opts);
+    </script>
+  </body>
+</html>
